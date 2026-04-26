@@ -1,11 +1,31 @@
 {
-  "name": "veem",
-  "version": "0.1.0",
+  "name": "veem-cli",
+  "version": "1.0.1",
   "description": "CLI to provision VMs and deploy apps with zero-downtime",
+  "author": "scott-mccartney",
+  "license": "MIT",
   "main": "dist/index.js",
   "bin": {
     "veem": "./dist/index.js"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scott-mccartney/veem.git"
+  },
+  "keywords": [
+    "veem",
+    "vm",
+    "docker",
+    "startup",
+    "setup"
+  ],
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc && node -e \"const fs=require('fs'); const f='dist/index.js'; fs.writeFileSync(f, '#!/usr/bin/env node\\n'+fs.readFileSync(f,'utf8'));\"",
     "dev": "ts-node src/index.ts"
