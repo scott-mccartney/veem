@@ -57,6 +57,28 @@ Builds and deploys your app to the VM.
 | `--ssh-key <path>` | SSH key path override |
 | `--image <name>` | Docker image name override |
 
+## Utility commands
+
+### `veem logs`
+
+Fetches logs from the deployed container on the VM.
+
+| Option | Description |
+|---|---|
+| `-C, --container <name>` | Container name (default: `<appName>-app-1`) |
+| `-T, --tail` | Follow log output (`docker logs -f`) |
+| `--ssh-user <user>` | SSH user override |
+| `--ssh-key <path>` | SSH key path override |
+
+### `veem ps`
+
+Lists all Docker containers on the VM (`docker ps -a`).
+
+| Option | Description |
+|---|---|
+| `--ssh-user <user>` | SSH user override |
+| `--ssh-key <path>` | SSH key path override |
+
 ## Configuration
 
 `veem` reads from a `.veem.json` file in your project root. Options passed via CLI flags take precedence.

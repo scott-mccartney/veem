@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import { loadConfig, validateConfig, promptConfig, VeemConfig } from './config';
 import { init } from './commands/init';
 import { deploy } from './commands/deploy';
+import { logs } from './commands/logs';
+import { ps } from './commands/ps';
 import * as logger from './logger';
 
 const program = new Command();
@@ -64,6 +66,54 @@ program
       validateConfig(config, ['host', 'sshUser', 'sshKeyPath', 'appName', 'appPort', 'imageName']);
 
       await deploy(config, opts.tag);
+    } catch (err) {
+      logger.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('logs')
+  .description('Show logs for the deployed container on the VM')
+  .option('-C, --container <name>', 'Container name (default: <appName>-app-1)')
+  .option('-T, --tail', 'Follow log output (docker logs -f)')
+  .option('--ssh-user <user>', 'SSH user override')
+  .option('--ssh-key <path>', 'SSH key path override')
+  .action(async (opts) => {
+    try {
+      const overrides: Partial<VeemConfig> = {};
+      if (opts.sshUser) overrides.sshUser = opts.sshUser;
+      if (opts.sshKey) overrides.sshKeyPath = opts.sshKey;
+
+      const config = loadConfig(overrides);
+      if (!config.sshUser) config.sshUser = 'deploy';
+
+      validateConfig(config, ['host', 'sshUser', 'sshKeyPath', 'appName']);
+
+      await logs(config, opts.container, opts.tail);
+    } catch (err) {
+      logger.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('ps')
+  .description('List all Docker containers on the VM')
+  .option('--ssh-user <user>', 'SSH user override')
+  .option('--ssh-key <path>', 'SSH key path override')
+  .action(async (opts) => {
+    try {
+      const overrides: Partial<VeemConfig> = {};
+      if (opts.sshUser) overrides.sshUser = opts.sshUser;
+      if (opts.sshKey) overrides.sshKeyPath = opts.sshKey;
+
+      const config = loadConfig(overrides);
+      if (!config.sshUser) config.sshUser = 'deploy';
+
+      validateConfig(config, ['host', 'sshUser', 'sshKeyPath']);
+
+      await ps(config);
     } catch (err) {
       logger.error((err as Error).message);
       process.exit(1);

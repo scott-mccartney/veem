@@ -1,6 +1,6 @@
 {
   "name": "veem-cli",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "CLI to provision VMs and deploy apps with zero-downtime",
   "author": "scott-mccartney",
   "license": "MIT",
