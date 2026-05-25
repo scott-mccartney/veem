@@ -11,7 +11,7 @@ veem deploy  # ship the app
 
 **`veem init`** connects to a fresh Ubuntu VM and sets it up for production: installs Docker, configures a firewall, creates a dedicated deploy user, and provisions Traefik as a reverse proxy with automatic HTTPS via Let's Encrypt.
 
-**`veem deploy`** builds your Docker image locally, transfers it to the VM securely over SSH (no registry required), and starts your application using blue/green deployment — bringing up the new version before tearing down the old one so there's zero downtime.
+**`veem deploy`** builds your Docker image locally, transfers it to the VM securely over SSH (no registry required), and starts your application using blue/green deployment — bringing up the new version before tearing down the old one so there's zero downtime. Deployment also includes securely copying your .env file to your VM.
 
 ## Install
 
