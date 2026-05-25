@@ -86,6 +86,7 @@ export async function deploy(config: VeemConfig, tagOverride?: string): Promise<
     logger.info('Uploading .env');
     const envContent = fs.readFileSync(localEnv, 'utf8');
     await ssh.run(`tee ${appDir}/.env > /dev/null << 'VEEM_EOF'\n${envContent}\nVEEM_EOF`);
+    await ssh.run(`chmod 600 ${appDir}/.env`);
   } else {
     logger.warn('No local .env found — skipping upload');
   }

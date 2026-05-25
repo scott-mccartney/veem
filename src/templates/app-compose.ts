@@ -9,6 +9,8 @@ export function generateAppCompose(config: VeemConfig, tag: string): string {
   app:
     image: ${fullImage}
     restart: unless-stopped
+    env_file:
+      - .env
     expose:
       - "${config.appPort}"
     healthcheck:
