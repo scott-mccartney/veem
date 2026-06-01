@@ -52,6 +52,7 @@ program
   .option('--ssh-user <user>', 'SSH user override')
   .option('--ssh-key <path>', 'SSH key path override')
   .option('--image <name>', 'Docker image name override')
+  .option('--env <suffix>', 'Upload .env.<suffix> as .env on the VM (default: .env)')
   .action(async (opts) => {
     try {
       const overrides: Partial<VeemConfig> = {};
@@ -65,7 +66,7 @@ program
 
       validateConfig(config, ['host', 'sshUser', 'sshKeyPath', 'appName', 'appPort', 'imageName']);
 
-      await deploy(config, opts.tag);
+      await deploy(config, opts.tag, opts.env);
     } catch (err) {
       logger.error((err as Error).message);
       process.exit(1);

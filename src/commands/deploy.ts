@@ -43,7 +43,7 @@ async function isAppRunning(ssh: VeemSSH, appDir: string): Promise<boolean> {
   return result.trim().length > 0;
 }
 
-export async function deploy(config: VeemConfig, tagOverride?: string): Promise<void> {
+export async function deploy(config: VeemConfig, tagOverride?: string, envFile?: string): Promise<void> {
   const tag = tagOverride ?? getGitSha();
   const appDir = `~/apps/${config.appName}`;
 
@@ -81,12 +81,15 @@ export async function deploy(config: VeemConfig, tagOverride?: string): Promise<
   const composeContent = generateAppCompose(config, tag);
   await ssh.run(`tee ${appDir}/docker-compose.yml > /dev/null << 'VEEM_EOF'\n${composeContent}\nVEEM_EOF`);
 
-  const localEnv = path.join(process.cwd(), '.env');
+  const envFileName = envFile ? `.env.${envFile}` : '.env';
+  const localEnv = path.resolve(process.cwd(), envFileName);
   if (fs.existsSync(localEnv)) {
-    logger.info('Uploading .env');
+    logger.info(`Uploading ${envFileName} as .env`);
     const envContent = fs.readFileSync(localEnv, 'utf8');
     await ssh.run(`tee ${appDir}/.env > /dev/null << 'VEEM_EOF'\n${envContent}\nVEEM_EOF`);
     await ssh.run(`chmod 600 ${appDir}/.env`);
+  } else if (envFile) {
+    throw new Error(`Env file not found: ${localEnv}`);
   } else {
     logger.warn('No local .env found — skipping upload');
   }

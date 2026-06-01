@@ -56,6 +56,7 @@ Builds and deploys your app to the VM.
 | `--ssh-user <user>` | SSH user override (default: `deploy`) |
 | `--ssh-key <path>` | SSH key path override |
 | `--image <name>` | Docker image name override |
+| `--env <suffix>` | Upload `.env.<suffix>` as `.env` on the VM (e.g. `--env prod` → `.env.prod`) |
 
 ## Utility commands
 
@@ -96,6 +97,15 @@ Lists all Docker containers on the VM (`docker ps -a`).
 ```
 
 Place a `.env` file in your project root and `veem deploy` will upload it to the VM automatically.
+
+To deploy with a different env file, pass `--env <suffix>` and `veem` will upload `.env.<suffix>` from your project root in place of `.env`. For example:
+
+```sh
+veem deploy --env prod    # uploads .env.prod as .env on the VM
+veem deploy --env staging # uploads .env.staging as .env on the VM
+```
+
+If the named file doesn't exist, the deploy fails fast.
 
 ## License
 
