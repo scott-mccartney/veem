@@ -6,6 +6,35 @@ import { logs } from './commands/logs';
 import { ps } from './commands/ps';
 import * as logger from './logger';
 
+async function promptHidden(question: string): Promise<string> {
+  process.stdout.write(question);
+  const stdin = process.stdin;
+  const wasRaw = stdin.isTTY ? stdin.isRaw : false;
+  if (stdin.isTTY) stdin.setRawMode(true);
+  stdin.resume();
+
+  return new Promise<string>((resolve) => {
+    let input = '';
+    const onData = (chunk: Buffer): void => {
+      const ch = chunk.toString('utf8');
+      if (ch === '\r' || ch === '\n') {
+        if (stdin.isTTY) stdin.setRawMode(wasRaw);
+        stdin.pause();
+        stdin.removeListener('data', onData);
+        process.stdout.write('\n');
+        resolve(input);
+      } else if (ch === String.fromCharCode(3)) {
+        process.exit(1);
+      } else if (ch === String.fromCharCode(127) || ch === '\b') {
+        input = input.slice(0, -1);
+      } else {
+        input += ch;
+      }
+    };
+    stdin.on('data', onData);
+  });
+}
+
 const program = new Command();
 
 program
@@ -20,6 +49,8 @@ program
   .option('--ssh-user <user>', 'SSH user (default: root)')
   .option('--ssh-key <path>', 'Path to SSH private key')
   .option('--email <email>', "Email for Let's Encrypt")
+  .option('--with-postgres', 'Also install a persistent Postgres on db-internal network')
+  .option('--postgres-password <pw>', 'Postgres superuser password (prompted if omitted)')
   .action(async (opts) => {
     try {
       const overrides: Partial<VeemConfig> = {};
@@ -37,7 +68,18 @@ program
       validateConfig(config, ['host', 'sshUser', 'sshKeyPath', 'letsencryptEmail']);
       if (!config.sshUser) config.sshUser = 'root';
 
-      await init(config);
+      let postgresPassword: string | undefined = opts.postgresPassword;
+      if (opts.withPostgres && !postgresPassword) {
+        postgresPassword = await promptHidden('Postgres superuser password: ');
+        if (!postgresPassword) {
+          throw new Error('Postgres password cannot be empty');
+        }
+      }
+
+      await init(config, {
+        withPostgres: opts.withPostgres === true,
+        postgresPassword,
+      });
     } catch (err) {
       logger.error((err as Error).message);
       process.exit(1);

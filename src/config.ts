@@ -11,6 +11,8 @@ export interface VeemConfig {
   appPort: number;
   imageName: string;
   letsencryptEmail: string;
+  usePostgres?: boolean;
+  postgresDb?: string;
 }
 
 const CONFIG_FILE = '.veem.json';

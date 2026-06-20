@@ -78,20 +78,57 @@ export async function deploy(config: VeemConfig, tagOverride?: string, envFile?:
 
   await ssh.run(`mkdir -p ${appDir}`);
 
+  let databaseUrlBlock = '';
+  if (config.usePostgres) {
+    const postgresRunning = await ssh.runQuiet(
+      `docker ps --filter "name=postgres" --filter "status=running" --format "{{.Names}}" | head -1`
+    );
+    if (!postgresRunning) {
+      throw new Error(
+        'usePostgres is set but no running postgres container was found on the VM. Re-run `veem init --with-postgres` first.'
+      );
+    }
+
+    const dbName = config.postgresDb ?? config.appName;
+    const password = await ssh.runQuiet(
+      "grep '^POSTGRES_PASSWORD=' ~/postgres/.env | head -1 | cut -d= -f2-"
+    );
+    if (!password) {
+      throw new Error('Could not read POSTGRES_PASSWORD from ~/postgres/.env on the VM');
+    }
+
+    logger.info(`Ensuring database "${dbName}" exists...`);
+    await ssh.runQuiet(
+      `docker exec ${postgresRunning} psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='${dbName}'" | grep -q 1 || docker exec ${postgresRunning} createdb -U postgres ${dbName}`
+    );
+
+    const url = `postgres://postgres:${encodeURIComponent(password)}@postgres:5432/${dbName}`;
+    databaseUrlBlock = `\n# veem-managed\nDATABASE_URL=${url}\n`;
+    logger.info(`Wiring DATABASE_URL → postgres://postgres:***@postgres:5432/${dbName}`);
+  }
+
   const composeContent = generateAppCompose(config, tag);
   await ssh.run(`tee ${appDir}/docker-compose.yml > /dev/null << 'VEEM_EOF'\n${composeContent}\nVEEM_EOF`);
 
   const envFileName = envFile ? `.env.${envFile}` : '.env';
   const localEnv = path.resolve(process.cwd(), envFileName);
+  let envContent: string | undefined;
   if (fs.existsSync(localEnv)) {
+    envContent = fs.readFileSync(localEnv, 'utf8');
     logger.info(`Uploading ${envFileName} as .env`);
-    const envContent = fs.readFileSync(localEnv, 'utf8');
-    await ssh.run(`tee ${appDir}/.env > /dev/null << 'VEEM_EOF'\n${envContent}\nVEEM_EOF`);
-    await ssh.run(`chmod 600 ${appDir}/.env`);
   } else if (envFile) {
     throw new Error(`Env file not found: ${localEnv}`);
+  } else if (config.usePostgres) {
+    envContent = '';
+    logger.info('No local .env found — uploading veem-managed DATABASE_URL only');
   } else {
     logger.warn('No local .env found — skipping upload');
+  }
+
+  if (envContent !== undefined) {
+    const merged = envContent + databaseUrlBlock;
+    await ssh.run(`tee ${appDir}/.env > /dev/null << 'VEEM_EOF'\n${merged}\nVEEM_EOF`);
+    await ssh.run(`chmod 600 ${appDir}/.env`);
   }
 
   const running = await isAppRunning(ssh, appDir);

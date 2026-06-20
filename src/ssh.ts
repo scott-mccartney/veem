@@ -31,6 +31,14 @@ export class VeemSSH {
     return this.run(`sudo ${command}`, label);
   }
 
+  async runQuiet(command: string): Promise<string> {
+    const result = await this.ssh.execCommand(command);
+    if (result.code !== 0) {
+      throw new Error(`Command failed (exit ${result.code}): ${command}`);
+    }
+    return result.stdout.trim();
+  }
+
   async uploadContent(content: string, remotePath: string): Promise<void> {
     // Use printf to avoid heredoc issues with special characters in content
     const escaped = content

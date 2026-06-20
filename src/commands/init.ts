@@ -2,11 +2,16 @@ import { VeemConfig, ipToDashes } from '../config';
 import { VeemSSH } from '../ssh';
 import { generateTraefikStaticConfig } from '../templates/traefik-static';
 import { generateTraefikCompose } from '../templates/traefik-compose';
+import { generatePostgresCompose } from '../templates/postgres-compose';
 import * as logger from '../logger';
 
-const TOTAL_STEPS = 7;
+export interface InitOptions {
+  withPostgres?: boolean;
+  postgresPassword?: string;
+}
 
-export async function init(config: VeemConfig): Promise<void> {
+export async function init(config: VeemConfig, options: InitOptions = {}): Promise<void> {
+  const totalSteps = options.withPostgres ? 8 : 7;
   const ssh = new VeemSSH();
 
   logger.info(`Connecting to ${config.sshUser}@${config.host}...`);
@@ -14,18 +19,18 @@ export async function init(config: VeemConfig): Promise<void> {
   logger.success('Connected');
 
   // Step 1: Update system
-  logger.step(1, TOTAL_STEPS, 'Updating system packages');
+  logger.step(1, totalSteps, 'Updating system packages');
   await ssh.runSudo(
     'while ! flock -n /var/lib/apt/lists/lock true 2>/dev/null || ! flock -n /var/lib/dpkg/lock-frontend true 2>/dev/null; do sleep 2; done && DEBIAN_FRONTEND=noninteractive apt-get update -q && apt-get upgrade -yq'
   );
 
   // Step 2: Install Docker
-  logger.step(2, TOTAL_STEPS, 'Installing Docker');
+  logger.step(2, totalSteps, 'Installing Docker');
   await ssh.run('curl -fsSL https://get.docker.com | sh');
   await ssh.runSudo('apt-get install -yq docker-compose-plugin');
 
   // Step 3: Create deploy user
-  logger.step(3, TOTAL_STEPS, 'Creating deploy user');
+  logger.step(3, totalSteps, 'Creating deploy user');
   await ssh.runSudo('id deploy 2>/dev/null || adduser --disabled-password --gecos "" deploy');
   await ssh.runSudo('usermod -aG sudo,docker deploy');
   await ssh.runSudo('mkdir -p /home/deploy/.ssh');
@@ -35,18 +40,18 @@ export async function init(config: VeemConfig): Promise<void> {
   );
 
   // Step 4: Configure firewall
-  logger.step(4, TOTAL_STEPS, 'Configuring UFW firewall');
+  logger.step(4, totalSteps, 'Configuring UFW firewall');
   await ssh.runSudo('ufw allow OpenSSH');
   await ssh.runSudo('ufw allow 80/tcp');
   await ssh.runSudo('ufw allow 443/tcp');
   await ssh.runSudo('ufw --force enable');
 
   // Step 5: Create shared Docker network
-  logger.step(5, TOTAL_STEPS, 'Creating traefik-public Docker network');
+  logger.step(5, totalSteps, 'Creating traefik-public Docker network');
   await ssh.runSudo('docker network create traefik-public 2>/dev/null || true');
 
   // Step 6: Upload Traefik config
-  logger.step(6, TOTAL_STEPS, 'Uploading Traefik configuration');
+  logger.step(6, totalSteps, 'Uploading Traefik configuration');
   await ssh.runSudo('mkdir -p /home/deploy/traefik/traefik');
 
   const traefikYml = generateTraefikStaticConfig(config.letsencryptEmail);
@@ -58,8 +63,28 @@ export async function init(config: VeemConfig): Promise<void> {
   await ssh.runSudo('chown -R deploy:deploy /home/deploy/traefik');
 
   // Step 7: Start Traefik
-  logger.step(7, TOTAL_STEPS, 'Starting Traefik');
+  logger.step(7, totalSteps, 'Starting Traefik');
   await ssh.run('cd /home/deploy/traefik && sudo docker compose up -d');
+
+  // Step 8 (optional): Postgres
+  if (options.withPostgres) {
+    if (!options.postgresPassword) {
+      throw new Error('Postgres password required when --with-postgres is set');
+    }
+    logger.step(8, totalSteps, 'Setting up Postgres');
+    await ssh.runSudo('docker network create db-internal 2>/dev/null || true');
+    await ssh.runSudo('mkdir -p /home/deploy/postgres');
+
+    const postgresEnv = `POSTGRES_USER=postgres\nPOSTGRES_PASSWORD=${options.postgresPassword}\nPOSTGRES_DB=postgres\n`;
+    const postgresCompose = generatePostgresCompose();
+
+    await ssh.runSudo(`tee /home/deploy/postgres/.env > /dev/null << 'VEEM_EOF'\n${postgresEnv}\nVEEM_EOF`);
+    await ssh.runSudo('chmod 600 /home/deploy/postgres/.env');
+    await ssh.runSudo(`tee /home/deploy/postgres/docker-compose.yml > /dev/null << 'VEEM_EOF'\n${postgresCompose}\nVEEM_EOF`);
+    await ssh.runSudo('chown -R deploy:deploy /home/deploy/postgres');
+    await ssh.run('cd /home/deploy/postgres && sudo docker compose up -d');
+    logger.success('Postgres running on db-internal network (not exposed to host)');
+  }
 
   const ipDashes = ipToDashes(config.host);
   logger.success(`Traefik is running. Dashboard: http://${config.host}:8888/dashboard/`);
