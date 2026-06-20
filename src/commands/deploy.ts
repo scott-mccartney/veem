@@ -96,7 +96,12 @@ export async function deploy(config: VeemConfig, tagOverride?: string, envFile?:
 
   const running = await isAppRunning(ssh, appDir);
 
-  if (running) {
+  if (running && config.dataPath) {
+    logger.info('App has a persistent volume — performing serialized update (brief downtime)');
+    await ssh.run(`cd ${appDir} && docker compose up -d --no-deps app`);
+    await waitForHealthy(ssh, config.appName);
+    await ssh.run('docker container prune -f');
+  } else if (running) {
     logger.info('App is running — performing zero-downtime update');
     await ssh.run(`cd ${appDir} && docker compose up -d --no-deps --scale app=2 app`);
     await waitForHealthy(ssh, config.appName);

@@ -5,6 +5,18 @@ export function generateAppCompose(config: VeemConfig, tag: string): string {
   const domain = `${config.appName}.${ipDashes}.sslip.io`;
   const fullImage = `${config.imageName}:${tag}`;
 
+  const volumeMount = config.dataPath
+    ? `
+    volumes:
+      - data:${config.dataPath}`
+    : '';
+  const volumesBlock = config.dataPath
+    ? `
+
+volumes:
+  data:`
+    : '';
+
   return `services:
   app:
     image: ${fullImage}
@@ -12,7 +24,7 @@ export function generateAppCompose(config: VeemConfig, tag: string): string {
     env_file:
       - .env
     expose:
-      - "${config.appPort}"
+      - "${config.appPort}"${volumeMount}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${config.appPort}/health"]
       interval: 10s
@@ -37,6 +49,6 @@ networks:
   traefik-public:
     external: true
   internal:
-    driver: bridge
+    driver: bridge${volumesBlock}
 `;
 }

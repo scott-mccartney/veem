@@ -11,7 +11,7 @@ veem deploy  # ship the app
 
 **`veem init`** connects to a fresh Ubuntu VM and sets it up for production: installs Docker, configures a firewall, creates a dedicated deploy user, and provisions Traefik as a reverse proxy with automatic HTTPS via Let's Encrypt.
 
-**`veem deploy`** builds your Docker image locally, transfers it to the VM securely over SSH (no registry required), and starts your application using blue/green deployment — bringing up the new version before tearing down the old one so there's zero downtime. Deployment also includes securely copying your .env file to your VM.
+**`veem deploy`** builds your Docker image locally, transfers it to the VM securely over SSH (no registry required), and starts your application using blue/green deployment — bringing up the new version before tearing down the old one so there's zero downtime. (Apps with a persistent volume deploy serialized instead — see [Persistent data](#persistent-data-sqlite-uploads-etc).) Deployment also includes securely copying your .env file to your VM.
 
 ## Install
 
@@ -92,11 +92,32 @@ Lists all Docker containers on the VM (`docker ps -a`).
   "host": "1.2.3.4",
   "sshUser": "deploy",
   "sshKeyPath": "~/.ssh/id_rsa",
-  "letsencryptEmail": "you@example.com"
+  "letsencryptEmail": "you@example.com",
+  "dataPath": "/app/data"
 }
 ```
 
 Place a `.env` file in your project root and `veem deploy` will upload it to the VM automatically.
+
+## Persistent data (SQLite, uploads, etc.)
+
+Set `dataPath` to a directory inside your container and `veem` will mount a named Docker volume there. The volume survives every deploy and image rebuild, so it's the place to keep a SQLite database or other files that must outlive a release.
+
+```json
+{
+  "dataPath": "/app/data"
+}
+```
+
+Point your app at the mounted path, e.g. in `.env`:
+
+```
+DATABASE_URL=/app/data/app.db
+```
+
+The volume is named `<appName>_data` on the VM. Don't rename the `~/apps/<appName>` directory on the VM afterward, or Compose will look for a differently-named volume and the data will appear to be gone (it's still there under the old name).
+
+**Deploys for apps with a `dataPath` are serialized**, not zero-downtime. SQLite is a single-writer database, so `veem` stops the old container before starting the new one to guarantee only one container ever writes the file — a brief downtime during each deploy. Apps without a `dataPath` keep the zero-downtime blue/green rollover.
 
 To deploy with a different env file, pass `--env <suffix>` and `veem` will upload `.env.<suffix>` from your project root in place of `.env`. For example:
 

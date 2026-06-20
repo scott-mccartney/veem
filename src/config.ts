@@ -11,6 +11,7 @@ export interface VeemConfig {
   appPort: number;
   imageName: string;
   letsencryptEmail: string;
+  dataPath?: string;
 }
 
 const CONFIG_FILE = '.veem.json';
@@ -62,6 +63,9 @@ export async function promptConfig(): Promise<VeemConfig> {
     imageName: await ask('Docker image name (e.g. my-api or myorg/my-api): '),
     letsencryptEmail: await ask("Let's Encrypt email: "),
   };
+
+  const dataPath = await ask('Persistent data path in container, e.g. /app/data [none]: ');
+  if (dataPath) config.dataPath = dataPath;
 
   rl.close();
 
