@@ -26,7 +26,13 @@ export function buildImage(imageName: string, tag: string): void {
 export function saveImage(imageName: string, tag: string, tarPath: string): void {
   const fullTag = `${imageName}:${tag}`;
   logger.info(`Saving ${fullTag} to ${tarPath}`);
-  const result = spawnSync('docker', ['save', '-o', tarPath, fullTag], { stdio: 'inherit' });
+  // gzip the uncompressed `docker save` stream to shrink the SSH transfer.
+  // pipefail so a docker save failure isn't masked by gzip's exit code.
+  const result = spawnSync(
+    'bash',
+    ['-c', `set -o pipefail; docker save ${fullTag} | gzip > ${tarPath}`],
+    { stdio: 'inherit' }
+  );
   if (result.status !== 0) {
     throw new Error(`docker save failed`);
   }
