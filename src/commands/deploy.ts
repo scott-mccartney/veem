@@ -54,7 +54,7 @@ export async function deploy(config: VeemConfig, tagOverride?: string, envFile?:
   // Phase 2: Save image to tar
   logger.step(2, 4, 'Saving image to tar');
   const safeName = config.imageName.replace(/[^a-z0-9]/gi, '-');
-  const localTar = path.join(os.tmpdir(), `veem-${safeName}-${tag}.tar`);
+  const localTar = path.join(os.tmpdir(), `veem-${safeName}-${tag}.tar.gz`);
   saveImage(config.imageName, tag, localTar);
 
   // Phase 3: Remote deploy
@@ -65,7 +65,7 @@ export async function deploy(config: VeemConfig, tagOverride?: string, envFile?:
 
   logger.step(4, 4, 'Deploying to VM');
 
-  const remoteTar = `/tmp/veem-${safeName}-${tag}.tar`;
+  const remoteTar = `/tmp/veem-${safeName}-${tag}.tar.gz`;
   try {
     logger.info('Uploading image tar...');
     await ssh.uploadFile(localTar, remoteTar);
